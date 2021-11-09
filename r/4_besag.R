@@ -11,7 +11,7 @@ library(gridExtra)
 library(RColorBrewer)
 library(INLA)
 
-BiocManager::install(c("graph", "Rgraphviz"), dep=TRUE)
+#BiocManager::install(c("graph", "Rgraphviz"), dep=TRUE)
 library(Rgraphviz)
 library(graph)
 
