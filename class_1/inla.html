@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Bayesian inference using the integrated nested Laplace approximation (INLA)</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="  Joaquín Martínez-Minaya, 2021-11-10   Universitat Politècnica de València  https://smeg-bayes.org/  http://vabar.es/" />
+    <script src="libs/header-attrs-2.11/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="animate.css" type="text/css" />
+    <link rel="stylesheet" href="inla.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Bayesian inference using the integrated nested Laplace approximation (INLA)
+## Master’s Degree in Biostatistics
+### </br></br> <font size="6"> Joaquín Martínez-Minaya, 2021-11-10 </font> </br> Universitat Politècnica de València </br> <a href="https://smeg-bayes.org/" class="uri">https://smeg-bayes.org/</a> </br> <a href="http://vabar.es/" class="uri">http://vabar.es/</a>
+### <a href="mailto:jmarmin@upv.es" class="email">jmarmin@upv.es</a>
+
+---
+
+
+
+
+#Outline
+
+## 1. Why INLA?
+
+## 2. Elements to understand how INLA works
+
+## 3. Putting all the pieces together: INLA
+
+## 4. `R-INLA`
+
+## 5. Model Selection
+
+## 6. Examples
+## 7. References
+
+---
+class: center, middle, animated, rotateInUpRight, inverse 
+
+# 1. Why INLA?
+
+
+
+
+
+---
+# INLA as an alternative to MCMC
+
+- MCMC is an asymptotically exact method whereas INLA is an .hlb[approximation]. Their error are frequently very similar, as has been shown in many simulation studies.
+
+--
+
+- INLA is a .hlb[fast alternative] to MCMC for the general class of latent Gaussian models (LGMs). Many familiar models can be re-cast to look like LGMs:
+  - .hlb[generalized linear models], .hlb[generalized additive models], smoothing spline models, 
+  - state space models, semi-parametric regression, .hlb[random walk (first and second order)] models, longitudinal data models,
+  - .hlb[spatial and spatiotemporal] models, log-Gaussian Cox processes and geostatistical and geoadditive models., etc.
+--
+
+- To understand INLA, we need to be familiar with:
+  - Latent Gaussian models
+  - Gaussian Markov Random Fields (GMRFs)
+  - Laplace approximations
+  
+  
+  
+---
+
+class: inverse, center, middle, animated, slideInLeft
+
+# 2. Elements to understand how INLA works
+
+---
+
+# Latent Gaussian model
+
+## Level 1 : likelihood
+The first stage is formed by the .hlb[conditionally independent likelihood] function of data coming from a certain exponential family distribution:
+
+`$$p(\boldsymbol{y} \mid \boldsymbol{\theta}, \boldsymbol{\psi}_1) = \prod_{i=1}^{n} p(y_i \mid \eta_i(\boldsymbol{\theta}),\boldsymbol{\psi}_1)$$`
+- `\(\boldsymbol{y} = (y_1,\ldots,y_{n})^T\)` is the response vector, `\(\boldsymbol{\theta} = (\theta_1,\ldots,\theta_n)^T\)` is the .hlb[latent field],
+- `\(\boldsymbol{\psi}_1\)` is the hyperparameter vector of the exponential family distribution and
+- `\(\eta_i(\boldsymbol{\theta})\)` is the `\(i\)`-th linear predictor that connects the data to the latent field.
+	
+Indeed each `\(\eta_i\)` can take a more general additive form:
+  `$$\eta_i  = \beta_0 + \sum_{j=1}^{J}\beta_k x_{ij} + \sum_{k=1}^{K}f^{(k)}(z_{ik})$$`
+		
+---
+
+# Latent Gaussian model
+
+## Level 2: latent Gaussian field
+- The second stage is formed by the .hlb[latent Gaussian field], where we attribute a Gaussian distribution with mean `\(\boldsymbol{\mu}\)` and precision matrix `\(Q(\boldsymbol{\psi}_2)\)` to the latent field `\(\boldsymbol{\theta}\)` conditioned on the hyperparameters `\(\boldsymbol{\psi}_2\)`, that is:
+$$ \boldsymbol{\theta} \mid \boldsymbol{\psi}_2 \sim \mathcal{N}(\boldsymbol{0},Q^{-1}(\boldsymbol{\psi}_2)) $$
+
+- If we can assume conditional independence in `\(\boldsymbol{\theta}\)`, then this latent field is a .hlb[Gaussian Markov Random Field (GMRF)].
+
+--
+
+## Level 3: hyperparameters
+- Finally, the third stage is formed by the .hlb[prior distribution] assigned to the hyperparameters:
+`$$\boldsymbol{\psi} = (\boldsymbol{\psi}_1,\boldsymbol{\psi}_2) \sim p(\boldsymbol{\psi})$$` 
+
+---
+# GLMM
+- Breslow and Clayton (1993) present a dataset where they account for the proportion of seeds that germinated on each of 21 plates arranged according to a 2 by 2 factorial layout by seed and type of root extract. 
+
+.left-column3[
+The variables are:
+
+  - **r**: number of germinated seeds per plate
+  - **n**: number of total seeds per plate
+  - **x1**: seed type (0: seed O. aegyptiaco 75; 1: seed O. aegyptiaco 73) 
+  - **x2**: root extracted (0:bean; 1:cucumber); 
+  - **plate**: indicator for the plate
+This dataset is located in the package .hlb[INLA]
+]
+--
+.right-column3[
+&lt;div class="kable-table"&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; r &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; n &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x1 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x2 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; plate &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 39 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 23 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 62 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 23 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 81 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 26 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 51 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 17 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 39 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;/div&gt;
+]
+---
+# Example: mixed-effects model
+- We assume the counts follow a conditionally independent .hbl[Binomial likelihood] function:
+`$$y_{i} \mid \pi_i \sim \text{Binomial}(n_i,\pi_i),\ i=1,\ldots,21$$`
+--
+
+- We account for linear effects on .hlb[covariates] `\(x1_i\)` and `\(x2_i\)` for each individual, as well as a .hlb[random effect] on the individual level, the plate `\(b_i\)`.
+
+`\begin{eqnarray}
+\eta_{i}  &amp; = &amp; \text{logit}(\pi_{i}) = \beta_0 + \beta_1 x1_i + \beta_2 x2_i + b_i \\
+\beta_j &amp; \sim &amp; \mathcal{N}(0, \tau_{\beta}^{-1}),\ \tau_{\beta}\text{ known},\ j=0,1,2 \\
+b_i &amp; \sim &amp; \mathcal{N}(0, \tau_b^{-1}) \\ 
+\end{eqnarray}`
+
+So, in this case, `\(\boldsymbol{\theta} = (\beta_0, \beta_1, \beta_2, b_1, ..., b_{21})\)`. A Gaussian prior is assigned for each element of the .hlb[latent field], so that `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is .hlb[Gaussian distributed].
+
+--
+
+- To assing the prior of `\(\boldsymbol{\psi} = (\tau_b)\)`:
+$$ \log(\tau_b) \sim \text{logGamma}(1, 5 \cdot 10^{-5}) \,$$
+
+---
+# Gaussian Markov Random Fields (GMRFs)
+
+- A GMRF is a random vector following a .hlb[multivariate normal distribution] with Markov properties.
+`$$i \neq j, \ \theta_i \mid \theta_{ij},$$`
+being `\(-ij\)` all elements other than `\(i\)` and `\(j\)`.
+
+--
+
+- Rue et al. (2009) showed how .hbl[conditional independence properties] are encoded in the precision matrix, and how this can be exploited to improve computation involving these matrices. 
+`$$i \neq j, \ \theta_i \perp \theta_j \mid \theta_{ij},$$`
+`$$\theta_i \perp \theta_j \mid \boldsymbol{\theta}_{ij} \leftrightarrow \boldsymbol{Q}_{ij} = 0$$`
+--
+
+- This Markov assumption in the GMRF results in a .hlb[sparse precision matrix]. This sparseness aids extremely fast computation.
+
+---
+# The pairwise Markov property
+## The two black nodes are conditionally independent given the gray nodes
+
+.center[![](../images/graph_gmrf.png)]
+
+
+---
+# Example: precision matrix in AR1
+
+.left-column2[
+## Covariance matrix `\(\huge (\boldsymbol{\Sigma})\)`
+
+&lt;table&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.8730 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6957 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5201 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3460 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.1728 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.6957 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.3931 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.0417 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6929 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3460 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.5201 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.0417 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.5659 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.0417 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5201 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.3460 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6929 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.0417 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.3931 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6957 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.1728 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3460 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5201 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6957 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.8730 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+
+.right-column2[
+## Precision matrix `\(\huge (\boldsymbol{Q})\)`
+&lt;table&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1.9025 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9025 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9025 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9025 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.9500 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9025 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+
+.center[
+![](../images/AR1.png)]
+---
+# Laplace approximations
+- .hlb[The Laplace approximation] is used to estimate any distribution `\(p(\theta)\)` with a normal distribution.
+
+--
+
+- It uses the first three terms (quadratic function) .hlb[Taylor series expansion] around the mode `\(\theta^*\)` of a function to approximate its log.
+
+--
+
+- Using the approximation, `\(p(\theta)\)` can be approximated using a .hlb[Gaussian distribution] with mean the mode `\(\theta^*\)` and variance the Fisher information, `\(\frac{-1}{\frac{d^2 \log(p(\theta^*))}{d \theta^2}}\)`.
+
+`$$p(\theta) \approx \mathcal{N} \left(\theta^*, \frac{-1}{\frac{d^2 \log(p(\theta^*))}{d \theta^2}} \right)$$`
+
+--
+
+- It can be easily expanded to the multivariate case.
+
+---
+# Example: approximating the beta distribution
+
+.center[
+![](../images/laplace_approximation.png)]
+
+
+
+
+---
+class: inverse, center, middle, animated, bounceInDown
+
+# 3. Putting all the pieces together: INLA
+
+
+---
+# INLA: Aim
+
+## Marginals of the latent field and hyperparameters
+`$${p(\theta_i \mid \boldsymbol{y})} =  \int {p(\theta_i \mid \boldsymbol{\psi}, \boldsymbol{y})} \cdot {p (\boldsymbol{\psi} \mid \boldsymbol{y})} d \boldsymbol{\psi}\,\,, \ i=1, \ldots, n$$`
+`$$p(\psi_j \mid \boldsymbol{y}) = \int{p(\boldsymbol{\psi} \mid \boldsymbol{y})}  d \boldsymbol{\psi}_{-j}\,, \ j=1, \ldots, m$$`
+
+- As a result, we have to numerically approximate:
+
+	1. The .hlb[joint posterior distribution of the hyperparmeters] `\({p(\boldsymbol{\psi} \mid \boldsymbol{y})}\)`, needed to calculate the posterior hyperparameters marginals `\(p(\psi_j \mid \boldsymbol{y})\)`, and the .hbl[posterior marginals of the latent field] `\(p(\theta_i \mid  \boldsymbol{y})\)`.
+	
+	2. The .hlb[marginals of the full conditional distribution] of `\(\boldsymbol{\theta}\)`, `\({p(\theta_i \mid \boldsymbol{\psi}, \boldsymbol{y})}\)`, needed to compute the posterior marginals of the latent field `\(p(\theta_i \mid \boldsymbol{y})\)`.
+
+---
+# Hyperparameters: joint posterior distribution
+- The approximation is computed as follows
+
+`$$\tilde{p}(\boldsymbol{\psi} \mid \boldsymbol{y}) := \frac{p(\boldsymbol{\theta},\boldsymbol{\psi}| \boldsymbol{y})}{p_G(\boldsymbol{\theta} \mid \boldsymbol{\psi}, \boldsymbol{y})}\bigg | _{\boldsymbol{\theta}=\boldsymbol{\theta}^*(\boldsymbol{\psi})}\,\,,$$`	
+
+- where:
+  - `\(p_G(\boldsymbol{\theta} \mid \boldsymbol{\psi}, \boldsymbol{y})\)` is the Gaussian approximation to the full conditional of `\(\boldsymbol{\theta}\)`, `\(p(\boldsymbol{\theta} \mid \boldsymbol{\psi}, \boldsymbol{y})\)` given by the .hlb[Laplace method], and,
+  
+  - `\(\boldsymbol{\theta}^*(\boldsymbol{\psi})\)` is the mode of the full conditional of `\(\boldsymbol{\theta}\)` for a given `\(\boldsymbol{\psi}\)`. 
+
+	- Note: this approximation is exact if `\(p(\boldsymbol{\theta}\mid \boldsymbol{y}, \boldsymbol{\psi})\)` is Gaussian.
+
+---
+# Full posterior marginals for the latent field
+
+### .hlb[Gaussian approximation] 
+- Conditional posterior distributions `\({p(\theta_i \mid \boldsymbol{\psi}, \boldsymbol{y})}\)` are approximated directly as the marginals from `\(p_G(\boldsymbol{\theta} \mid \boldsymbol{\psi}, \boldsymbol{y})\)`.
+- It is the .hlbred[fastest to compute] but with possible .hlbred[errors] in the location of the posterior mean. 
+
+--
+	
+### .hlb[Laplace approximation] 
+- The vector `\(\boldsymbol{\theta}\)` is rewriten as `\(\boldsymbol{\theta}=(\theta_i, \boldsymbol{\theta}_{-i})\)`, and the Laplace approximation is used for each element of the latent field 
+	`$$\tilde{p}(\theta_i \mid \boldsymbol{\psi}, \boldsymbol{y}) := \frac{p(\boldsymbol{\theta},\boldsymbol{\psi}| \boldsymbol{y})}{p_{LG}(\boldsymbol{\theta}_{-i} \mid \theta_i ,\boldsymbol{\psi}, \boldsymbol{y})}\bigg |_{\boldsymbol{\theta}_{-i}=\boldsymbol{\theta}_{-i}^*(\theta_i, \boldsymbol{\psi})}\,\,,$$`
+	where `\(p_{LG}(\boldsymbol{\theta}_{-i} \mid \theta_i ,\boldsymbol{\psi}, \boldsymbol{y})\)` is the Laplace Gaussian approximation to `\(p(\boldsymbol{\theta}_{-i} \mid \theta_i ,\boldsymbol{\psi}, \boldsymbol{y})\)` and `\(\boldsymbol{\theta}_{-i}\)` is its mode.
+	
+- The .hlbred[most accurate] but .hlbred[time consuming]. 
+
+---
+
+
+
+# Full posterior marginals for the latent field
+### .hlb[Simplified Laplace approximation]
+
+- Based on a Taylor's series expansion of third order.
+- .hlbred[Fast to compute] and usually .hlbred[accurate enough].
+
+---
+
+# Final step: integration
+- The INLA algorithm uses Newton-like methods to explore the joint posterior distribution for the hyperparameters `\(\tilde{p}(\boldsymbol{\psi}|\boldsymbol{y})\)` to find .hlb[suitable points] for the numerical integration.
+
+- Posterior marginals for the .hlb[latent variables] `\(\tilde{p}(\theta_i|\boldsymbol{y})\)` are then computed via numerical integration as: 
+  `$$\tilde{p}(\theta_i \mid \boldsymbol{y}) = \int \tilde{p}(\theta_i \mid \boldsymbol{\psi},\boldsymbol{y}) \tilde{p}(\boldsymbol{\psi} \mid \boldsymbol{y}) \text{d}\boldsymbol{\psi} \approx \sum_{k=1}^{K} \tilde{p}(\theta_i \mid \boldsymbol{\psi}^{(k)},\boldsymbol{y}) \tilde{p}(\boldsymbol{\psi}^{(k)} \mid \boldsymbol{y})\Delta_k$$` 
+
+--
+
+- Posterior marginals for the .hlb[hyperparameters] `\(\psi_j\)` are approximated using the integrations points previously constructed.
+
+&lt;!-- - Choice of the integration points can be done by defining a grid of points covering the area where most of the mass of `\(\tilde{p}(\boldsymbol{\psi}|\boldsymbol{y})\)` is located or laying out a small amount of points in a `\(m\)`-dimensional space in order to estimate the curvature of  `\(\tilde{p}(\boldsymbol{\psi}|\boldsymbol{y})\)`. --&gt;
+---
+class: inverse, center, middle, animated, bounceInDown
+
+
+# 4. `R-INLA`
+
+---
+# Data
+.left-column2[
+&lt;/br&gt;
+&lt;div class="kable-table"&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; y &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; id &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2.109177 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3077661 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1.954976 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2576725 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2.294048 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5523224 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2.217938 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0563832 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2.007082 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4685493 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 2.339932 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4837707 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;/div&gt;
+]
+
+.right-column2[
+![](inla_files/figure-html/unnamed-chunk-7-1.png)&lt;!-- --&gt;
+]
+
+---
+# Fitting the model using `R-INLA`
+
+## Defining the formula
+
+```r
+formula &lt;- y ~ 1 + x # 1 is refered to the intercept term
+formula &lt;- y ~ 1 + f(x, model = "linear")
+```
+
+## Calling `R-INLA`
+
+
+```r
+model1 &lt;- inla(formula, 
+               family       = 'gaussian', 
+               data         = data,
+               control.inla = list(strategy = 'simplified.laplace'))
+```
+---
+# Posterior distributions
+
+## .hlb[Posterior distribution of the parameters]
+
+&lt;/br&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; mean &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; sd &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.025quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.5quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.975quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; mode &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; kld &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; (Intercept) &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9946 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0226 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9502 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9946 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2.0389 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.9946 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; x &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4935 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0388 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4172 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4935 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.5698 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4935 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+## .hlb[Posterior distributions of the hyperparameters]
+&lt;/br&gt;
+
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt;   &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; mean &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; sd &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.025quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.5quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; 0.975quant &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; mode &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Precision for the Gaussian observations &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 99.4865 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 13.9906 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 73.9147 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 98.837 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 128.7727 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 97.5136 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+# Families
+
+```r
+  inla.list.models(section = "likelihood")
+```
+
+```
+## Section [likelihood]
+##      agaussian                     The aggregated Gaussian likelihoood     
+##      beta                          The Beta likelihood                     
+##      betabinomial                  The Beta-Binomial likelihood            
+##      betabinomialna                The Beta-Binomial Normal approximation likelihood
+##      bgev                          The blended Generalized Extreme Value likelihood
+##      binomial                      The Binomial likelihood                 
+##      cbinomial                     The clustered Binomial likelihood       
+##      cenpoisson                    Then censored Poisson likelihood        
+##      cenpoisson2                   Then censored Poisson likelihood (version 2)
+##      circularnormal                The circular Gaussian likelihoood       
+##      coxph                         Cox-proportional hazard likelihood      
+##      dgp                           Discrete generalized Pareto likelihood  
+##      exponential                   The Exponential likelihood              
+##      exponentialsurv               The Exponential likelihood (survival)   
+##      fmri                          fmri distribution (special nc-chi)      
+##      fmrisurv                      fmri distribution (special nc-chi)      
+##      gamma                         The Gamma likelihood                    
+##      gammacount                    A Gamma generalisation of the Poisson likelihood
+##      gammajw                       A special case of the Gamma likelihood  
+##      gammajwsurv                   A special case of the Gamma likelihood (survival)
+##      gammasurv                     The Gamma likelihood (survival)         
+##      gaussian                      The Gaussian likelihoood                
+##      gev                           The Generalized Extreme Value likelihood
+##      gompertz                      gompertz distribution                   
+##      gompertzsurv                  gompertz distribution                   
+##      gp                            Generalized Pareto likelihood           
+##      gpoisson                      The generalized Poisson likelihood      
+##      iidgamma                      (experimental)                          
+##      iidlogitbeta                  (experimental)                          
+##      loggammafrailty               (experimental)                          
+##      logistic                      The Logistic likelihoood                
+##      loglogistic                   The loglogistic likelihood              
+##      loglogisticsurv               The loglogistic likelihood (survival)   
+##      lognormal                     The log-Normal likelihood               
+##      lognormalsurv                 The log-Normal likelihood (survival)    
+##      logperiodogram                Likelihood for the log-periodogram      
+##      nbinomial                     The negBinomial likelihood              
+##      nbinomial2                    The negBinomial2 likelihood             
+##      nmix                          Binomial-Poisson mixture                
+##      nmixnb                        NegBinomial-Poisson mixture             
+##      poisson                       The Poisson likelihood                  
+##      poisson.special1              The Poisson.special1 likelihood         
+##      pom                           Likelihood for the proportional odds model
+##      qkumar                        A quantile version of the Kumar likelihood
+##      qloglogistic                  A quantile loglogistic likelihood       
+##      qloglogisticsurv              A quantile loglogistic likelihood (survival)
+##      simplex                       The simplex likelihood                  
+##      sn                            The Skew-Normal likelihoood             
+##      stochvol                      The Gaussian stochvol likelihood        
+##      stochvolnig                   The Normal inverse Gaussian stochvol likelihood
+##      stochvolsn                    The SkewNormal stochvol likelihood      
+##      stochvolt                     The Student-t stochvol likelihood       
+##      t                             Student-t likelihood                    
+##      tstrata                       A stratified version of the Student-t likelihood
+##      tweedie                       Tweedie distribution                    
+##      weibull                       The Weibull likelihood                  
+##      weibullcure                   The Weibull-cure likelihood (survival)  
+##      weibullsurv                   The Weibull likelihood (survival)       
+##      wrappedcauchy                 The wrapped Cauchy likelihoood          
+##      xbinomial                     The Binomial likelihood (expert version)
+##      xpoisson                      The Poisson likelihood (expert version) 
+##      zeroinflatedbetabinomial0     Zero-inflated Beta-Binomial, type 0     
+##      zeroinflatedbetabinomial1     Zero-inflated Beta-Binomial, type 1     
+##      zeroinflatedbetabinomial2     Zero inflated Beta-Binomial, type 2     
+##      zeroinflatedbinomial0         Zero-inflated Binomial, type 0          
+##      zeroinflatedbinomial1         Zero-inflated Binomial, type 1          
+##      zeroinflatedbinomial2         Zero-inflated Binomial, type 2          
+##      zeroinflatedcenpoisson0       Zero-inflated censored Poisson, type 0  
+##      zeroinflatedcenpoisson1       Zero-inflated censored Poisson, type 1  
+##      zeroinflatednbinomial0        Zero inflated negBinomial, type 0       
+##      zeroinflatednbinomial1        Zero inflated negBinomial, type 1       
+##      zeroinflatednbinomial1strata2 Zero inflated negBinomial, type 1, strata 2
+##      zeroinflatednbinomial1strata3 Zero inflated negBinomial, type 1, strata 3
+##      zeroinflatednbinomial2        Zero inflated negBinomial, type 2       
+##      zeroinflatedpoisson0          Zero-inflated Poisson, type 0           
+##      zeroinflatedpoisson1          Zero-inflated Poisson, type 1           
+##      zeroinflatedpoisson2          Zero-inflated Poisson, type 2           
+##      zeroninflatedbinomial2        Zero and N inflated binomial, type 2    
+##      zeroninflatedbinomial3        Zero and N inflated binomial, type 3
+```
+
+---
+# Latent effects
+
+```r
+  inla.list.models(section = "latent")
+```
+
+```
+## Section [latent]
+##      2diid                         (This model is obsolute)                
+##      ar                            Auto-regressive model of order p (AR(p))
+##      ar1                           Auto-regressive model of order 1 (AR(1))
+##      ar1c                          Auto-regressive model of order 1 w/covariates
+##      besag                         The Besag area model (CAR-model)        
+##      besag2                        The shared Besag model                  
+##      besagproper                   A proper version of the Besag model     
+##      besagproper2                  An alternative proper version of the Besag model
+##      bym                           The BYM-model (Besag-York-Mollier model)
+##      bym2                          The BYM-model with the PC priors        
+##      clinear                       Constrained linear effect               
+##      copy                          Create a copy of a model component      
+##      crw2                          Exact solution to the random walk of order 2
+##      dmatern                       Dense Matern field                      
+##      fgn                           Fractional Gaussian noise model         
+##      fgn2                          Fractional Gaussian noise model (alt 2) 
+##      generic                       A generic model                         
+##      generic0                      A generic model (type 0)                
+##      generic1                      A generic model (type 1)                
+##      generic2                      A generic model (type 2)                
+##      generic3                      A generic model (type 3)                
+##      iid                           Gaussian random effects in dim=1        
+##      iid1d                         Gaussian random effect in dim=1 with Wishart prior
+##      iid2d                         Gaussian random effect in dim=2 with Wishart prior
+##      iid3d                         Gaussian random effect in dim=3 with Wishart prior
+##      iid4d                         Gaussian random effect in dim=4 with Wishart prior
+##      iid5d                         Gaussian random effect in dim=5 with Wishart prior
+##      iidkd                         Gaussian random effect in dim=k with Wishart prior
+##      intslope                      Intecept-slope model with Wishart-prior 
+##      linear                        Alternative interface to an fixed effect
+##      log1exp                       A nonlinear model of a covariate        
+##      logdist                       A nonlinear model of a covariate        
+##      matern2d                      Matern covariance function on a regular grid
+##      meb                           Berkson measurement error model         
+##      mec                           Classical measurement error model       
+##      ou                            The Ornstein-Uhlenbeck process          
+##      revsigm                       Reverse sigmoidal effect of a covariate 
+##      rgeneric                      Generic latent model spesified using R  
+##      rw1                           Random walk of order 1                  
+##      rw2                           Random walk of order 2                  
+##      rw2d                          Thin-plate spline model                 
+##      rw2diid                       Thin-plate spline with iid noise        
+##      seasonal                      Seasonal model for time series          
+##      sigm                          Sigmoidal effect of a covariate         
+##      slm                           Spatial lag model                       
+##      spde                          A SPDE model                            
+##      spde2                         A SPDE2 model                           
+##      spde3                         A SPDE3 model                           
+##      z                             The z-model in a classical mixed model formulation
+```
+
+---
+
+# Hyperpriors
+
+```r
+  inla.list.models(section = "prior")
+```
+
+```
+## Section [prior]
+##      betacorrelation               Beta prior for the correlation          
+##      dirichlet                     Dirichlet prior                         
+##      expression:                   A generic prior defined using expressions
+##      flat                          A constant prior                        
+##      gamma                         Gamma prior                             
+##      gaussian                      Gaussian prior                          
+##      invalid                       Void prior                              
+##      jeffreystdf                   Jeffreys prior for the doc              
+##      linksnintercept               Skew-normal-link intercept-prior        
+##      logflat                       A constant prior for log(theta)         
+##      loggamma                      Log-Gamma prior                         
+##      logiflat                      A constant prior for log(1/theta)       
+##      logitbeta                     Logit prior for a probability           
+##      logtgaussian                  Truncated Gaussian prior                
+##      logtnormal                    Truncated Normal prior                  
+##      minuslogsqrtruncnormal        (obsolete)                              
+##      mvnorm                        A multivariate Normal prior             
+##      none                          No prior                                
+##      normal                        Normal prior                            
+##      pc                            Generic PC prior                        
+##      pc.alphaw                     PC prior for alpha in Weibull           
+##      pc.ar                         PC prior for the AR(p) model            
+##      pc.cor0                       PC prior correlation, basemodel cor=0   
+##      pc.cor1                       PC prior correlation, basemodel cor=1   
+##      pc.dof                        PC prior for log(dof-2)                 
+##      pc.fgnh                       PC prior for the Hurst parameter in FGN 
+##      pc.gamma                      PC prior for a Gamma parameter          
+##      pc.gammacount                 PC prior for the GammaCount likelihood  
+##      pc.gevtail                    PC prior for the tail in the GEV likelihood
+##      pc.matern                     PC prior for the Matern SPDE            
+##      pc.mgamma                     PC prior for a Gamma parameter          
+##      pc.prec                       PC prior for log(precision)             
+##      pc.range                      PC prior for the range in the Matern SPDE
+##      pc.sn                         PC prior for the skew-normal            
+##      pc.spde.GA                    (experimental)                          
+##      pom                           #classes-dependent prior for the POM model
+##      ref.ar                        Reference prior for the AR(p) model, p&lt;=3
+##      table:                        A generic tabulated prior               
+##      wishart1d                     Wishart prior dim=1                     
+##      wishart2d                     Wishart prior dim=2                     
+##      wishart3d                     Wishart prior dim=3                     
+##      wishart4d                     Wishart prior dim=4                     
+##      wishart5d                     Wishart prior dim=5                     
+##      wishartkd                     Wishart prior
+```
+
+---
+
+class: inverse, center, middle, animated, rotateInUpLeft
+
+
+# 5. Model Selection
+
+---
+# Model selection scores in `R-INLA`
+- When use different covariates and random effects, we need some measures to select the best model:
+  - .hlb[DIC]: deviance information criteria
+		`$$DIC  = 2*E(D(\boldsymbol{\theta})) - 						D(E(\boldsymbol{\theta}))$$`
+		
+	- .hlb[WAIC]: within-sample predictive score
+		`$$WAIC  = \sum_{i} var_{post}(log( p(y_i|\boldsymbol{\theta})))$$`
+		
+	- .hlb[LCPO]: leave-one-out cross-validation score
+	  `$$CPO_i = p(y_i \mid y_{-i})$$`
+		
+	  `$$LCPO  = - \overline{\log(CPO_i) }$$` 
+
+---
+class: inverse, center, middle, animated, rotateInDownRight
+
+
+# 6. Examples
+
+---
+# GLMM
+- Breslow and Clayton (1993) present a dataset where they account for the proportion of seeds that germinated on each of 21 plates arranged according to a 2 by 2 factorial layout by seed and type of root extract. 
+
+.left-column3[
+The variables are:
+
+  - **r**: number of germinated seeds per plate
+  - **n**: number of total seeds per plate
+  - **x1**: seed type (0: seed O. aegyptiaco 75; 1: seed O. aegyptiaco 73) 
+  - **x2**: root extracted (0:bean; 1:cucumber); 
+  - **plate**: indicator for the plate
+This dataset is located in the package .hlb[INLA]
+]
+--
+.right-column3[
+&lt;div class="kable-table"&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; r &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; n &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x1 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x2 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; plate &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 10 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 39 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 23 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 62 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 23 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 81 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 26 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 51 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 17 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 39 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;/div&gt;
+]
+---
+# Example: mixed-effects model
+- We assume the counts follow a conditionally independent .hbl[Binomial likelihood] function:
+`$$y_{i} \mid \pi_i \sim \text{Binomial}(n_i, \pi_i),\ i=1,\ldots,21$$`
+--
+
+- We account for linear effects on .hlb[covariates] `\(x1_i\)` and `\(x2_i\)` for each individual, as well as a .hlb[random effect] on the individual level, the plate `\(b_i\)`.
+
+`\begin{eqnarray}
+\eta_{i} &amp; = &amp; \text{logit}(\pi_{i}) = \beta_0 + \beta_1 x1_i + \beta_2 x2_i + b_i \\
+\beta_j &amp; \sim &amp; \mathcal{N}(0, \tau_{\beta}^{-1}),\ \tau_{\beta}\text{ known},\ j=0,1,2 \\
+b_i &amp; \sim &amp; \mathcal{N}(0, \tau_b^{-1}) \\ 
+\end{eqnarray}`
+
+So, in this case, `\(\boldsymbol{\theta} = (\beta_0, \beta_1, \beta_2, b_1, ..., b_{21})\)`. A Gaussian prior is assigned for each element of the .hlb[latent field], so that `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is .hlb[Gaussian distributed].
+
+--
+
+- To assing the prior of `\(\boldsymbol{\psi} = (\tau_b)\)`:
+$$ \log(\tau_b) \sim \text{logGamma}(1, 5 \cdot 10^{-5}) \,$$
+
+
+
+
+---
+# Bayesian splines
+- GLMM with independent random effect does not cover situations in which relationship between the response variable and the covariate is not linear.
+
+--
+
+- In INLA, we can do this by means of the .hlb[random walk] of order 1 and 2.
+  - .hlb[First order Random Walk (RW1)] 
+`$$\Delta x_j = x_j - x_{j+1} \sim  \mathcal{N}\left(0, \sigma^2=\frac{1}{\tau}\right)$$`
+
+  - .hlb[Second order Random Walk (RW2)] `$$\Delta^2x_i = x_{i} - 2x_{i+1} + x_{i+2} \sim  \mathcal{N}\left(0, \sigma^2=\frac{1}{\tau}\right)$$`
+  - The prior for the hyperparameter `\(\tau\)` is reparametrized in terms of their logarithm:
+		`$$\log(\tau) \sim \text{logGamma}(1, 5 \cdot 10^{-5})\,\,.$$`
+
+---
+
+# Smoothing time series of binomial data
+.left-column3[
+- The number of .hlb[occurrences of rainfall] over 1 mm in the Tokyo area for each calendar year during two years (1983-84) are registered. 
+
+- It is of interest to estimate the underlying probability `\({\pi_t}\)` of rainfall for calendar day `\({t}\)` which is, a priori, assumed to change gradually over time. 
+
+- For each day `\({t = 1, ..., 366}\)` of the year we have the number of days that rained `\({y_t}\)` and the number of days that were observed `\({n_t}\)`.
+]
+
+.right-column3[
+
+**Dataset**
+
+&lt;div class="kable-table"&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; y &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; n &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; time &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 3 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;/div&gt;
+
+
+
+]
+---
+# Smoothing time series of binomial data. The model
+- A conditionally independent .hlb[binomial likelihood] function:
+    $$y_t \mid \pi_t \sim \text{Binomial}(n, \pi_t),\ t = 1, ..., 366 $$
+with (usual) logit link function:
+    `$$\pi_t = \frac{\exp(\eta_t)}{1 + \exp(\eta_t)}$$`
+
+- We assume that (instead of a linear predictor), `\(\eta_t = f_t\)`, where `\(f_t\)` follows a circular .hlb[random walk] of second order (RW2) model with precision `\(\tau\)`:
+    `$$\Delta^2f_i = f_i - 2 f_{i+1} + f_{i+2} \sim \mathcal{N}(0,\tau^{-1}).$$`
+The fact that we use a circular model here means that in this case `\(f_1\)` is a neighbor of  `\(f_{366}\)`. So, in this case `\(\boldsymbol{\theta} = (f_1, ..., f_{366})\)` and again `\(\boldsymbol{\theta}|\boldsymbol{\psi}\)` is .hlb[Gaussian distributed].
+
+- To assing the prior of `\(\boldsymbol{\psi} = (\tau)\)`:
+    `$$\log(\tau) \sim \text{logGamma}(1, 5 \cdot 10^{-5})\,\,.$$`
+		
+---
+# Posterior distribution of the probability
+
+.center[
+![](../images/rws.png)]
+
+---
+
+# Disease mapping
+- Congdon (2007) study suicide mortality in 32 London boroughs (excluding the City of London) in the period 1989–1993 for male and female combined, using a disease mapping model and an ecological regression model.
+
+.left-column4[
+- The variables are:
+  - **N**: which contains the name of boroughs
+  - **O**: the number of observed suicides in the period under study
+  - **E**: the number of expected cases of suicides (E), 
+  - **x1**: an index of social deprivation, and 
+  - **x2**: an index of social fragmentation (X2), which represents the lack of social connections and of sense of community.
+]
+
+.right-column4[
+&lt;div class="kable-table"&gt;
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:left;"&gt; NAME &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; y &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; E &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x1 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; x2 &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Barking and Dagenham &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 75 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 80.7 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.87 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -1.02 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Barnet &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 145 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 169.8 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.96 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.33 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Bexley &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 99 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 123.2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.84 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -1.43 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Brent &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 168 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 139.5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.13 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.10 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Bromley &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 152 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 169.1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -1.19 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; -0.98 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:left;"&gt; Camden &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 173 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 107.2 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.35 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.77 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;/div&gt;
+]
+---
+
+#Standarized Mortality Ratio (SMR): raw data
+
+.center[
+![](../images/SMR_raw.png)]
+
+---
+# The model
+
+- A conditional independent .hlb[Poisson] likelihood function is assumed:
+`$$y_i \sim \text{Poisson}(\lambda_i), \ \ \lambda_i =E_i \rho_i, \ \ \log(\rho_i)=\eta_i \,\,, i=1, \ldots 729 \,\,$$`
+--
+
+- We assume that `\(\eta_i=\beta_0 + u_i + v_i\)`, being `\(\boldsymbol{u}\)` the .hlb[independent random effect] and `\(\boldsymbol{v}\)` the .hlb[spatially structured random effect]:
+
+`$$u_i \sim \mathcal{N}\left(0, \tau_{\boldsymbol{u}}^{-1}\right), \  v_i \mid \boldsymbol{v}_{-i} \sim \mathcal{N} \left(\frac{1}{n_{i}} \sum_{i \sim j} v_j, \frac{1}{n_{i} \tau_{\boldsymbol{v}}}\right)\,\,.$$`
+
+In this case `\(\boldsymbol{\theta}=(v_1, \ldots, v_{729}, u_1, \ldots, u_{729})\)`, and `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is Gaussian distributed.
+
+--
+
+- .hlb[Hyperpriors] for `\(\tau_{\boldsymbol{u}}\)` and `\(\tau_{\boldsymbol{v}}\)` are reparametrized in terms of their logarithm:
+`$$\log(\tau_{\boldsymbol{v}}) \sim \text{logGamma}(1, 0.001)\,\,, \ \log(\tau_{\boldsymbol{u}}) \sim \text{logGamma}(1, 0.001)\,\,.$$`
+---
+
+# Posterior distribution of the spatial effect
+
+.center[
+![](../images/random_effect_spatial_bym.png)]
+
+---
+# Posterior distribution for the SMR and P(SMR &gt; 1)
+.center[
+![](../images/SMR_bym_disc.png)]
+
+---
+class: inverse, center, middle, animated, slideInLeft
+
+# 7. References
+
+---
+# This material has been constructed based on:
+
+- Blangiardo, M., &amp; Cameletti, M. (2015). Spatial and spatio-temporal Bayesian models with R-INLA. John Wiley &amp; Sons.
+
+- Rue, H., &amp; Held, L. (2005). Gaussian Markov random fields: theory and applications. Chapman and Hall/CRC.
+
+- Rue, H., Martino, S.,  &amp; Chopin, N. (2009). Approximate Bayesian inference for latent Gaussian models by using integrated nested Laplace approximations. Journal of the royal statistical society: Series b (statistical methodology), 71(2), 319-392.
+
+- Wang, X., Ryan, Y. Y., &amp; Faraway, J. J. (2018). Bayesian Regression Modeling with INLA. Chapman and Hall/CRC.
+
+- &lt;a href="https://haakonbakka.bitbucket.io/organisedtopics.html/" style="color:#FF0000;"&gt; Tutorials by Haakon Bakka &lt;/a&gt;
+
+- &lt;a href="https://www.precision-analytics.ca/blog/a-gentle-inla-tutorial/" style="color:#FF0000;"&gt; A gentle INLA tutorial by Kathryn Morrison &lt;/a&gt;
+
+- &lt;a href="https://becarioprecario.bitbucket.io/inla-gitbook/index.html" style="color:#FF0000;"&gt; INLA book by Virgilio Gómez-Rúbio &lt;/a&gt;
+
+---
+class: inverse, center, middle, animated, bounceInDown
+
+# The End
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"ratio": "16:9",
+"highlightStyle": "foundation",
+"highlightLines": true,
+"countIncrementalSlides": true,
+"slideNumberFormat": "%current%"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
