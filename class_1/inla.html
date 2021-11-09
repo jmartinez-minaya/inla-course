@@ -200,7 +200,7 @@ So, in this case, `\(\boldsymbol{\theta} = (\beta_0, \beta_1, \beta_2, b_1, ...,
 
 --
 
-- To assing the prior of `\(\boldsymbol{\psi} = (\tau_b)\)`:
+- To assign the prior of `\(\boldsymbol{\psi} = (\tau_b)\)`:
 $$ \log(\tau_b) \sim \text{logGamma}(1, 5 \cdot 10^{-5}) \,$$
 
 ---
@@ -559,7 +559,7 @@ model1 &lt;- inla(formula,
 &lt;tbody&gt;
   &lt;tr&gt;
    &lt;td style="text-align:left;"&gt; Precision for the Gaussian observations &lt;/td&gt;
-   &lt;td style="text-align:right;"&gt; 99.4865 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 99.4866 &lt;/td&gt;
    &lt;td style="text-align:right;"&gt; 13.9906 &lt;/td&gt;
    &lt;td style="text-align:right;"&gt; 73.9147 &lt;/td&gt;
    &lt;td style="text-align:right;"&gt; 98.837 &lt;/td&gt;
@@ -1086,14 +1086,14 @@ The fact that we use a circular model here means that in this case `\(f_1\)` is 
 # The model
 
 - A conditional independent .hlb[Poisson] likelihood function is assumed:
-`$$y_i \sim \text{Poisson}(\lambda_i), \ \ \lambda_i =E_i \rho_i, \ \ \log(\rho_i)=\eta_i \,\,, i=1, \ldots 729 \,\,$$`
+`$$y_i \sim \text{Poisson}(\lambda_i), \ \ \lambda_i =E_i \rho_i, \ \ \log(\rho_i)=\eta_i \,\,, i=1, \ldots 32 \,\,$$`
 --
 
 - We assume that `\(\eta_i=\beta_0 + u_i + v_i\)`, being `\(\boldsymbol{u}\)` the .hlb[independent random effect] and `\(\boldsymbol{v}\)` the .hlb[spatially structured random effect]:
 
 `$$u_i \sim \mathcal{N}\left(0, \tau_{\boldsymbol{u}}^{-1}\right), \  v_i \mid \boldsymbol{v}_{-i} \sim \mathcal{N} \left(\frac{1}{n_{i}} \sum_{i \sim j} v_j, \frac{1}{n_{i} \tau_{\boldsymbol{v}}}\right)\,\,.$$`
 
-In this case `\(\boldsymbol{\theta}=(v_1, \ldots, v_{729}, u_1, \ldots, u_{729})\)`, and `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is Gaussian distributed.
+In this case `\(\boldsymbol{\theta}=(v_1, \ldots, v_{32}, u_1, \ldots, u_{32})\)`, and `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is Gaussian distributed.
 
 --
 
