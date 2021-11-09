@@ -1,8 +1,7 @@
 
 Bayesian Inference using INLA
 ================
-
-This course has been constructed combining material of different courses that I have had the chance to participate jointly with David Conesa from the University of Valencia, Maria Grazia Pennino from C.O. Vigo and Iosu Paradinas from the University of Sant Andrews. Also, using different tutorial and books which are referenced at the end of each presentation.
+This is a course for everyone who want to start learning Bayesian Inference using INLA. It has been constructed combining material of different courses that I have had the chance to participate jointly with David Conesa from the University of Valencia, Maria Grazia Pennino from C.O. Vigo and Iosu Paradinas from the University of Sant Andrews. Also, using different tutorial and books which are referenced at the end of each presentation.
 
 
 # Program
