@@ -89,7 +89,7 @@ class: center, middle, animated, rotateInUpRight, inverse
 ---
 # Bayesian inference
 
-- Construction of the .hlb[joint distribution] about the unknown elements of the problem: o
+- Construction of the .hlb[joint distribution] about the unknown elements of the problem: 
   - `\(l(\theta;x) = p(\boldsymbol{x}|\boldsymbol{\theta})\)` is the .hlb[likelihood] function of the observed data,
 
   - `\(p(\boldsymbol{\theta})\)` is the .hlb[prior distribution],
@@ -109,7 +109,7 @@ $$
 
   - .hlb[Likelihood]
   `$$p(\boldsymbol{y}|\pi) = \ell(\pi) = \pi^{k}(1-\pi)^{n-k}$$`
-
+  k: times that a player score a penalty.
 --
 
 - After asking some experts, we end up with a 75 percentage chance to score through a penalty. We use a .hlb[conjugate prior distribution], the Beta distribution, to express this information. The corresponding values for a and b are with parameters `\(a = 83.46\)` and `\(b = 28.05\)`.
@@ -128,7 +128,7 @@ $$
 ## Estimating the probability to score
 
 ### - .hlb[Likelihood]
-$$p(\boldsymbol{y}|\pi) = \ell(\pi) = \pi^{r}(1-\pi)^{1-r} $$
+$$p(\boldsymbol{y}|\pi) = \ell(\pi) = \pi^{k}(1-\pi)^{1-k} $$
 
 --
 
@@ -288,7 +288,7 @@ For each `\(j\)`,
 
 `$$y_{ij} \mid \pi_j \sim \text{Ber}(\pi_j)$$`
 
-`$$\pi \sim \text{Beta}(a_j, b_j)\,, \text{ with } a_j \text{ and } b_j \text{ fixed}$$`
+`$$\pi_j \sim \text{Beta}(a_j, b_j)\,, \text{ with } a_j \text{ and } b_j \text{ fixed}$$`
 
 --
 
@@ -321,7 +321,7 @@ being `\(r_{ij}\)` the number of penalties scored for the team `\(j\)` and `\(n_
 
 ### 3. Consider a .hlbred[hierarchical model].
 
-- The parametric vector `\(\boldsymbol{\pi} = \pi_1, \ldots, \pi_{12}\)` is a .hlbred[random sampling from a common distribution] that depends on a vector of .hlbred[hyperparameters], `\(\boldsymbol{\psi}\)`, partial or totally unknown.
+- The parametric vector `\(\boldsymbol{\pi} = \pi_1, \ldots, \pi_{10}\)` is a .hlbred[random sampling from a common distribution] that depends on a vector of .hlbred[hyperparameters], `\(\boldsymbol{\psi}\)`, partial or totally unknown.
 
 --
 

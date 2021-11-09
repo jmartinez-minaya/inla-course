@@ -80,6 +80,7 @@ plot_map_neig <- function(neig)
   plot(london.gen[temp[[neig]], ], 
        border="white", 
        col="pink", add=TRUE)
+  london.gen[temp[[neig]],]$NAME
 }
 
 plot_map_neig(30)
