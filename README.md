@@ -30,7 +30,7 @@ install.packages(pkgs = c("ggplot2", "gridExtra", "maptools", "rgdal", "spdep", 
 
 ```
 
-The R-INLA package can be downloaded directly from the webpage http://www.r-inla.org/download
+The R-INLA package can be downloaded directly from the webpage https://www.r-inla.org/download-install
 
 ```r
 ### --- INLA --- ###
