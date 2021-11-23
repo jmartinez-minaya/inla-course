@@ -22,6 +22,8 @@ coords <- as.matrix(data[,c("lon","lat")])
 m1 <- inla.mesh.2d(coords, max.edge = 0.3)
 plot(m1)
 points(coords,pch=16)
+
+
 # !!! abrupt transitions between small and big tringles --> maybe numerical problems
 
 
@@ -66,8 +68,7 @@ points(coords,pch=16)
 
 #### better, important to find good compromise between number of of nodes 
 #### in mesh and require precision in the spatial field
-## !!! maybe range bigger than distance between observations and mesh edge --> 
-## border effect (increase variance)
+
 
 
 
@@ -93,7 +94,7 @@ points(coords, pch = 16)
 ### ----- 2.7. MESH 7 --- ####
 m7 <- inla.mesh.2d(boundary = borinla, 
                    max.edge = c(0.1, .3),
-                   offset   = c(0.2, -0.3), 
+                   offset   = c(0.1, -0.3), 
                    cutoff   = c(0.05))
 plot(m7)
 points(coords,pch=16)

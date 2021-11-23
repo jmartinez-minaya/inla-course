@@ -144,27 +144,14 @@ model.est <- readRDS("rds/model_est_gal.rds")
 model.est$logfile
 summary(model.est)
 
-
+plot(model.est$marginals.hyperpar$`Range for spatial`)
 
 
 ### --- 6. Posterior distribution hyperpars --- ####
-### --- Postprocess --- ###
-spde.result = inla.spde2.result(model.est, "spatial", spde, do.transform=TRUE)
-
-sigma2 <- inla.emarginal(function(x) x, spde.result$marginals.variance.nominal[[1]])
-range <- inla.emarginal(function(x) x, spde.result$marginals.range.nominal[[1]]) 
-
-### --- Check the range is smaller than the offset --- ###
-range < max(diff(range(galicia[,1])), diff(range(galicia[,2])))*.25 #Yes!!!
-
-### --- The corresponding 95% highest probability density intervals are --- ###
-range_in <- inla.hpdmarginal(0.95, spde.result$marginals.range.nominal[[1]])
-sigma2_in<-inla.hpdmarginal(0.95, spde.result$marginals.variance.nominal[[1]])
-
 ### --- Plot --- ###
 par(mfrow = c(1,2), mar = c(3,3,1,0.5)) 
-plot(spde.result$marginals.variance.nominal[[1]], type='l') 
-plot(spde.result$marginals.range.nominal[[1]], type='l') 
+plot(model.est$marginals.hyperpar$`Range for spatial`, xlim = c(0, 100000), type = "l")
+plot(model.est$marginals.hyperpar$`Stdev for spatial`, type='l', xlim = c(0, 2)) 
 
 
 ### --- 7. Interpolate the posterior mean and sd --- ####
@@ -375,6 +362,7 @@ summary(data_arb)
 ### --- The spatial polygon --- ####
 load("data/spain_arabid/penin_sp.RData")
 plot(penin_sp)
+
 
 
 

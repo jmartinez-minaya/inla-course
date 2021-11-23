@@ -23,7 +23,7 @@ y <- rnorm(n,mu,sigma)
 
 #We create the data.frame
 data <- data.frame(y <- y, x <- x)
-
+colnames(data) <- c("y", "x")
 #Plot the data
 plot(data$x, data$y)
 
@@ -127,12 +127,17 @@ abline(v=hpd.sigma[2],lty=2,col=2)
 
 ### --- 5. Modifying priors --- ####
 ### ----- 5.1. Fixed effects --- ####
+formula <- y ~ 1 + x
+# formula <- y ~1 + f(x, model = "linear", 
+#                     mean.linear = 0, 
+#                     prec.linear = 0.001)
 model2 <- inla(formula, 
                family        = "gaussian", 
                data          = data,
                control.inla  = list(strategy = "simplified.laplace"),
                control.fixed = list(mean = 0, prec = 1,
                                 mean.intercept = 0, prec.intercept = 0.0001))
+              
 
 ### --- Intercept --- ###
 plot(inla.smarginal(post.beta0),
@@ -253,7 +258,7 @@ rownames(selection)<-c("null", "covariate")
 selection
 
 ## Model1 has improved the fit of the null model
-
+model_null$cpo$cpo
 
 
 
