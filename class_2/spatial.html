@@ -1,0 +1,1011 @@
+<!DOCTYPE html>
+<html lang="" xml:lang="">
+  <head>
+    <title>Geostatistics using INLA and SPDE</title>
+    <meta charset="utf-8" />
+    <meta name="author" content="  Joaquín Martínez-Minaya, 2021-11-10   Universitat Politècnica de València  https://smeg-bayes.org/  http://vabar.es/" />
+    <script src="libs/header-attrs-2.11/header-attrs.js"></script>
+    <link href="libs/remark-css-0.0.1/default.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/metropolis.css" rel="stylesheet" />
+    <link href="libs/remark-css-0.0.1/metropolis-fonts.css" rel="stylesheet" />
+    <link rel="stylesheet" href="animate.css" type="text/css" />
+    <link rel="stylesheet" href="inla.css" type="text/css" />
+  </head>
+  <body>
+    <textarea id="source">
+class: center, middle, inverse, title-slide
+
+# Geostatistics using INLA and SPDE
+## Master’s Degree in Biostatistics
+### </br></br> <font size="6"> Joaquín Martínez-Minaya, 2021-11-10 </font> </br> Universitat Politècnica de València </br> <a href="https://smeg-bayes.org/" class="uri">https://smeg-bayes.org/</a> </br> <a href="http://vabar.es/" class="uri">http://vabar.es/</a>
+### <a href="mailto:jmarmin@upv.es" class="email">jmarmin@upv.es</a>
+
+---
+
+
+
+
+
+
+# Spatial statistics. Types of spatial data
+.left-column6[
+
+.hlb[Spatial statistics] is defined as the part of statistics which deal with spatial data and study spatial patterns. 
+
+- .hlb[Lattice or areal data]: observations are taken at a finite number of sites whose whole constitutes the entire study region (discrete space), e.g. number of sick people by provinces.
+
+- .hlb[Point pattern]: the interest is study the process which generates the points. e.g. distribution of trees in a mountain.
+
+- .hlb[Geostatistical data]: consist on a collection of data in a fixed set locations over a continuous spatial field, e.g. amount of fish in the ocean or presence/absence of a plant in a country.
+]
+
+.right-column6[
+&lt;div style="margin-top:-30px;"&gt; 
+&lt;/div&gt;
+
+![](../images/spatial_stat.png)
+
+]
+---
+
+# A review
+.left-column5[
+- .hlb[Latent Gaussian models] are a particular case of .hlbred[Hierarchical Bayesian models]
+
+
+- It works with .hlb[GMRFs]. .hlbred[Discrete space].
+
+
+&lt;/br&gt;
+
+.center[
+.hlb[1 dimension] 
+![](../images/rws_1.png)]
+]
+
+
+.right-column5[
+.center[
+.hlb[2 dimension]
+![](../images/SMR_1.png)]
+]
+
+---
+# Discrete spaces
+.left-column5[
+- Sometimes, the assumption that the observations have been collected over .hlbred[discrete time] points have to be removed. 
+  - In fishing data this asumption is not real. 
+
+- The same happen in .hlb[space]. 
+  - If we are studing the presence of a disease, or the temperature of an area, the locations where the phenomenon of interest is measured are not frequently allocated in a lattice. 
+  
+- Then, we are dealing with .hlb[continuous spaces] in 1D and 2D
+]
+.right-column5[
+.center[
+.hlb[*Fasciola* in Galicia]
+![](../images/data_galicia.png)]
+]
+---
+
+# Outline
+
+## 1. Geostatistics 
+
+## 2. The problem: study the distribution of a parasite
+## 3. The Stochastic Partial Differential Equation approach (SPDE)
+
+## 4. Penalized complexity priors (PC-priors)
+
+## 5. Fitting the model
+## 6. Example in one dimension
+## 7. Model convergence check
+
+## 8. References
+
+
+---
+class: inverse, center, middle, animated, rotateInDownRight
+
+# 1. Geostatistics
+---
+
+# Geostatistics. Basis
+
+&lt;/br&gt;
+
+- #### Geostatistical models assume that the observations are correlated.
+
+--
+
+&lt;/br&gt;
+
+- #### They are base on the following principle
+
+&lt;/br&gt;
+##.center[.hlb[Everything is related to everything else, but near things are more related than distant things]]
+
+--
+
+- #### So, two close locations tend to .hlb[co-vary] more than those far from each other.
+
+---
+# Let's do it a bit more formal 
+
+- A random spatial effect `\(w(s)\)` at a location `\(s \in \mathcal{D}\)` can be considered as a .hlb[stochastic process] characterized by a spatial index `\(s\)` which varies continuously in the fixed domain `\(\mathcal{D}\)`, where `\(\mathcal{D}\)` is a fixed subset of `\(r\)`-dimensional Euclidean space. 
+
+--
+
+- The spatial process `\(w(s)\)` is Gaussian if for any `\(n \geq 1\)` and any set of sites `\(s = \{s_1, \ldots, s_n\}\)`, `\(w = \{w(s_1 ), \ldots, w(s_n)\}\)` has a multivariate normal distribution with mean `\(\mu = E(w(s))\)` and a structured covariance matrix `\(\Sigma\)`. Usually `\(\mu\)` is assumed to be `\(\boldsymbol{0}\)`. In the literature, this process is widely known as a .hlb[Gaussian field (GF)]. 
+
+--
+
+- The key issue in spatial statistics is the covariance function `\(\mathcal{C}\)`, which determines the covariance between random variables in two different points. If `\(s_i\)` and `\(s_j\)` are two locations in space, then the .hlb[covariance function] is defined as 
+`$$\mathcal{C}(w(s_i), w(s_j)) = Cov(w(s_i), w(s_j))$$`
+- It defines the covariance matrix `\(\boldsymbol{\Sigma}\)` of the GF. Each element of the matrix `\(\boldsymbol{\Sigma}_{ij}\)` is defined as:
+
+`$$\boldsymbol{\Sigma}_{ij} = \mathcal{C}(w(s_i), w(s_j))$$`
+
+---
+# Matérn
+
+- .hlb[Stationarity]. We say that the GF is second-order stationary if `\(\mu(s) = \mu\)` and `\(Cov(w(s), w(s + h)) = \mathcal{C}(h)\)` for all `\(h \in \mathcal{R}\)` such that `\(s\)` and `\(s + h\)` lie within `\(\mathcal{D}\)`. The covariance function in two different locations depends on the distance vector between these two locations. 
+
+  - An example could be the spread of a pathogen in plants. If there is a road close to the crop,
+maybe this pathogen could spread faster by the road in cars or trucks than in the crop, it would depend on the direction. 
+
+--
+
+- .hlb[Isotropy]. We say that the GF is isotropic if the covariance function depends only on the Euclidean distance between points, i.e., `\(Cov(w(s), w(s + h)) = C(||h||)\)`. 
+
+  - For instance, if we think again in the spread of a pathogen in a crop, it would mean that the spread does
+not depend on the direction, just on the distance. 
+
+--
+
+
+-  .hlb[Matérn correlation] function is so popular.
+`$$\mathcal{C}(||h||)  =  \sigma_{\boldsymbol{w}}^2 \left(\frac{\sqrt{8}}{\phi} ||h||\right) K_1 \left(\frac{\sqrt{8}}{\phi} ||h||\right)$$`
+
+---
+
+
+# Matérn correlation function
+
+.center[
+![](../images/matern_range.png)]
+
+
+&lt;!-- # Spatial component --&gt;
+
+&lt;!-- ## .hlb[Why is important to add the spatial component in our models?] --&gt;
+
+&lt;!-- ### 1. Account for the .hlb[spatial autocorrelation] in our model --&gt;
+
+&lt;!--   - .hlb[Better estimation] between the relationship of the response and explicative variables; --&gt;
+&lt;!--   - .hlb[Better predictions]. --&gt;
+
+&lt;!-- ### 2. When you add the spatial component as another variable in your model you can .hlb[map] it. --&gt;
+
+&lt;!--   - The spatial effect indicate the .hlb[spatial intrinsic variability] of the data after the exclusion of the others explicative data, --&gt;
+
+&lt;!--   - It could be a very useful tool as it could highlight different .hlb[spatial pattern] about a species distribution. --&gt;
+
+
+---
+class: inverse, center, middle, animated, rotateInDownRight
+
+# 2. The problem: study the distribution of a parasite
+
+---
+# *Fasciola* in Galicia
+
+- We present a database which has information about the .hlb[presence/absence] of a parasite (*Fasciola*) affecting cattle. The dataset has information about 400 animals. 
+Information on the study region and demographic information of each animal is available. Our objective is find the model that best explain the occurrence of this parasite. 
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; X &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Y &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; InfFasc &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Age &lt;/th&gt;
+   &lt;th style="text-align:left;"&gt; Aptitude &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Temperature &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Rainfall &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Altitude &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Slope &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; Density &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 570415 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4745300 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 7 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; L &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11.92794 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1134 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 326 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 14 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 53.035714 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 575035 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4743803 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 8 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11.73245 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1001 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 381 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 7 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 24.698305 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 537275 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4766007 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 6 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; L &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11.68868 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1293 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 359 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 8 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 57.744242 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 578408 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4749055 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; L &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11.92566 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1070 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 417 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 7 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 50.019608 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 654996 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4659947 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 13 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; C &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 10.55047 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 836 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 9 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1.467676 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 562916 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 4754869 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11 &lt;/td&gt;
+   &lt;td style="text-align:left;"&gt; L &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 11.86719 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 1179 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 385 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 5 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 61.431310 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+
+---
+# Response variable
+
+.left-column8[
+&lt;/br&gt;
+## .hlb[Presence/absence] of the parasite
+
+- The boundaries are stored in an object of class `SpatialPolygons`.
+]
+.right-column8[
+![](../images/data_galicia.png)]
+
+
+---
+
+
+# Covariate
+
+.left-column8[
+&lt;/br&gt;
+
+## .hlb[Temperature]
+- The covariate is stored in an object of class `raster`.
+]
+.right-column8[
+![](../images/temperature.png)]
+
+
+---
+
+# Latent Gaussian model (LGM)
+
+## .center[.hlb[Level 1 : likelihood]]
+`$$p(\boldsymbol{y} \mid \boldsymbol{\theta}, \boldsymbol{\psi}_1) = \prod_{i=1}^{n} p(y_i \mid \eta_i(\boldsymbol{\theta}),\boldsymbol{\psi}_1)$$`
+&lt;/br&gt;
+## .center[.hlb[Level 2: latent Gaussian field]]
+$$ \boldsymbol{\theta} \mid \boldsymbol{\psi}_2 \sim \mathcal{N}(\mu(\boldsymbol{\psi}_2),Q^{-1}(\boldsymbol{\psi}_2)) $$
+
+&lt;/br&gt;
+## .center[.hlb[Level 3: hyperparameters]]
+`$$\boldsymbol{\psi} = (\boldsymbol{\psi}_1,\boldsymbol{\psi}_2) \sim p(\boldsymbol{\psi})$$` 
+
+---
+
+# Geostatistics in the context of LGMs
+
+&lt;font size="+2"&gt; .hlb[Likelihood] &lt;/font&gt; 
+
+- A conditional independent .hlb[Bernoulli likelihood] function is assumed:
+
+`$$y_i \mid \pi_i \sim \text{Ber}(\pi_i), \   \eta_i = \text{logit} (\pi_i)=\beta_0 + \beta_1 Temp + w_i \,\,, i=1, \ldots 400 \,\,$$`
+--
+
+&lt;font size="+2"&gt; .hlb[Latent Gaussian field] &lt;/font&gt; 
+
+`$$\boldsymbol{w}  \sim  \mathcal{N}(0, \boldsymbol{\Sigma}(\sigma_{\boldsymbol{w}}, \phi)), \ \beta_j \sim \mathcal{N}(0, \tau = 0.001)$$`
+`\(\boldsymbol{\theta}=(\beta_0, \beta_1, w_1, \ldots, w_{400})\)`, and `\(\boldsymbol{\theta} \mid \boldsymbol{\psi}\)` is Gaussian distributed.
+
+- `\(\boldsymbol{w} \sim \mathcal{N}(\boldsymbol{0}, \boldsymbol{\Sigma(\sigma_{\boldsymbol{w}}, \phi)})\)`, i.e., the spatial effect is assumed to be a .hlb[continuous Gaussian field (GF)] with Matérn covariance structure, where:
+- `\(\Sigma(\sigma_{\boldsymbol{w}}, \phi)\)` is a .hlb[covariance matrix] depending on the distance between locations, `\(\sigma_{\boldsymbol{w}}\)` is the .hlb[variance] of the spatial effect, and `\(\phi\)` is the .hlb[range] of the spatial effect.
+
+
+--
+&lt;font size="+2"&gt; .hlb[Hyperparameters] &lt;/font&gt;
+`\(\boldsymbol{\psi} = (\sigma_{\boldsymbol{w}}, \phi)\)`
+---
+
+&lt;/br&gt;
+
+## .center[.hlbred[Problem: INLA can not fit continuous GFs]]
+
+--
+
+&lt;/br&gt;
+
+## .center[.hlb[Solution: approximate the continuous GFs using the Stochastic Partial Differential Equation approach (SPDE) ]]
+
+---
+
+class: inverse, center, middle, animated, rotateInDownRight
+
+# 3. The Stochastic Partial Differential Equation approach (SPDE)
+
+---
+# The key idea
+.left-column2[
+
+### .center[.hlb[Likelihood]]
+`$$y_i \mid \pi_i \sim \text{Ber}(\pi_i) \,$$`
+`$$\text{logit}(\pi_i) = \beta_0 + \beta_1 Temp + w_i \,$$`
+
+
+### .center[.hlb[Latent Gaussian field]]
+`$$\boldsymbol{\beta} \sim \mathcal{N(\boldsymbol{0}, \tau = 0.0001)}$$`
+`$$\boldsymbol{w} \sim \mathcal{N}(\boldsymbol{0}, \boldsymbol{\Sigma(\sigma_{\boldsymbol{w}}, \phi)})$$`
+
+### .center[.hlb[Hyperparameters]]
+`$$p(\sigma_{\boldsymbol{w}}, \phi)$$`
+]
+
+.right-column2[
+### .center[.hlb[Likelihood]]
+`$$y_i \mid \pi_i \sim \text{Ber}(\pi_i) \,$$`
+`$$\text{logit}(\pi_i) = \beta_0 + \beta_1 Temp + w_i \,$$`
+
+
+### .center[.hlb[Latent Gaussian field]]
+`$$\boldsymbol{\beta} \sim \mathcal{N}(\boldsymbol{0}, \tau = 0.0001)$$`
+`$$\boldsymbol{w} \sim \mathcal{N}(\boldsymbol{0}, \boldsymbol{Q^{-1}(\sigma_{\boldsymbol{w}}, \phi)})$$`
+
+### .center[.hlb[Hyperparameters]]
+`$$p(\sigma_{\boldsymbol{w}}, \phi)$$`
+]
+
+---
+
+# How the approximation is conducted?
+
+![](../images/approximation_spde_all.png)
+
+
+
+
+---
+
+# FEM. General idea
+![](../images/fem_ex.png)
+
+--- 
+
+---
+
+# The mesh
+
+.left-column6[
+- The mesh is created using a .hlb[Delaunay triangulation].
+
+- The model is evaluated at the .hlb[intersecting nodes].
+
+- We want triangles with .hlb[similar size] over the study area. .hlbred[Sample locations in mesh nodes not necessary].
+
+- The greater is the number of triangles, the bigger is the computational cost.
+
+- Too big triangles imply that part of the small scale variablity could be masked in the intrinsic variance of the process under study `\(\boldsymbol{y}\)`.
+]
+
+.right-column6[
+.center[
+.hlb[mesh 2D]
+![](../images/mesh.png)]
+]
+
+
+---
+# Mesh in `R-INLA`
+.left-column4[
+&lt;/br&gt;
+
+&lt;/br&gt;
+
+
+```r
+borinla &lt;- inla.sp2segment(galicia_sp)
+mesh &lt;- 
+  inla.mesh.2d(boundary     = borinla,
+               max.edge     = ...,
+               min.angle    = ...,
+               cutoff       = ..., 
+               offset       = ...) 
+```
+
+- &lt;a href="https://haakonbakkagit.github.io/btopic114.html" style="color:#FF0000;"&gt; How to do a bad mesh. By Haakon Bakka&lt;/a&gt;
+]
+
+.right.column4[
+![](../images/mesh.png)
+]
+
+
+---
+
+
+
+
+
+# How the approximation is conducted?
+![](../images/approximation_spde_all.png)
+
+---
+
+# Connection between mesh and data: 1D
+
+.left-column6[
+
+```r
+mesh &lt;- inla.mesh.2d(boundary = ...,  
+                     max.edge = ...)
+```
+
+
+![](../images/data1d_cont_ex.png)]
+
+.right-column6[
+
+
+```r
+  inla.spde.make.A(mesh = ...,
+                   loc  = ...)
+```
+
+
+&lt;table&gt;
+ &lt;thead&gt;
+  &lt;tr&gt;
+   &lt;th style="text-align:right;"&gt; knot 1 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; knot 2 &lt;/th&gt;
+   &lt;th style="text-align:right;"&gt; knot 3 &lt;/th&gt;
+  &lt;/tr&gt;
+ &lt;/thead&gt;
+&lt;tbody&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.7456 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.2544 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.5567 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.4433 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.8802 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.1198 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.8261 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.1739 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6571 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3429 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.3993 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.6007 &lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+   &lt;td style="text-align:right;"&gt; 0.0000 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.1101 &lt;/td&gt;
+   &lt;td style="text-align:right;"&gt; 0.8899 &lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+]
+
+
+---
+# Connection between mesh and data: 2D
+.left-column8[
+
+&lt;/br&gt;
+
+&lt;/br&gt;
+
+
+```r
+  A.est &lt;- 
+  inla.spde.make.A(mesh, 
+      loc = cbind(data$x, data$y))
+```
+]
+.right-column8[
+![](../images/mesh_2D_ex.png)]
+
+
+---
+
+# How the approximation is conducted?
+![](../images/approximation_spde_all.png)
+
+---
+# Solving SPDE using FEM: 1D and 2D
+.center[
+![](../images/meshes_basis.png)]
+
+
+---
+# Defining SPDE
+
+&lt;/br&gt;
+
+- In order to .hlb[define the SPDE], the following command have to be used:
+
+&lt;/br&gt;
+
+
+```r
+spde &lt;- inla.spde2.pcmatern(
+  # Mesh 
+  mesh = mesh, 
+  # P(practic.range &lt; range0) = 0.5
+  prior.range = c(range0, 0.5),
+  # P(sigma &gt; 1) = 0.01
+  prior.sigma = c(1, 0.01)) 
+```
+
+---
+class: inverse, center, middle, animated, slideInLeft
+
+# 4. Penalized complexity priors (PC-priors)
+
+---
+# Penalizing departure from the base model
+
+- Simpson et al. (2017) propose priors that penalise departure from a base model and for this reason they are called .hlb[Penalized Complexity (PC) priors]. 
+
+--
+
+- The prior favours the base model unless evidence is provided against it, following the principle of parsimony. 
+
+--
+
+- Distance from the base model is measured using the .hlb[Kullback-Leibler] distance, and penalisation from the base model is done at a .hlb[constant rate on the distance]. 
+
+--
+
+- Finally, the PC prior is defined using .hlb[probability statements] on the model parameters in the appropriate scale.
+
+---
+# Hyperpriors for the standard deviation in an iid
+
+- The .hlb[PC-prior for the precision] `\(\tau\)` has density:
+
+`$$p(\tau) = \frac{\lambda}{2} \tau^{-3/2} \exp(-\lambda \tau^{-1/2}) \,, \ \tau &gt; 0 \,,$$`
+where $$ \lambda = - \frac{ln(\alpha)}{u} \,,$$
+and `\((u, \alpha)\)` are the parameters to this prior. The interpretation of `\((u, \alpha)\)` is that:
+
+`$$Prob(\sigma &gt; u) = \alpha \,, \ u&gt;0 \,, \ 0&lt; \alpha &lt; 1 \,.$$`
+--
+
+- Functions `inla.pc.{d,p,q,r}.prec` allow us to .hlb[deal with this priors].
+
+--
+
+- If we want to plot the prior in terms of the .hlb[standard deviation] `\(\sigma\)`, remember that using function `inla.tmarginal` we can go from the `\(\tau\)` parameter to `\(\sigma\)` parameter.
+
+---
+# Hyperpriors for the standard deviation in an iid. `\(sigma = 1\)`
+
+.center[
+![](../images/pc_prior_tau.png)]
+
+
+---
+# Spatial effect: priors
+- The PC-prior for the .hlb[range] is defined in terms of `\(\phi_0\)` and `\(p_1\)` so that
+
+`$$Prob(\phi &lt; \phi_0) = p_1$$`
+--
+
+- The PC-prior for the .hlb[standard deviation] is defined in terms of `\(\sigma_0\)` and `\(p_2\)` so that
+
+`$$Prob(\sigma_{\boldsymbol{w}} &gt; \sigma_0) = p_2$$` 
+--
+
+- In order to define the SPDE using PC-priors, the following command have to be used:
+
+```r
+  spde &lt;- inla.spde2.pcmatern(
+  mesh = ..., 
+  prior.range = c(phi0, p1),
+  prior.sigma = c(sigma0, p2)) 
+```
+
+---
+
+class: inverse, center, middle, animated, slideInLeft
+
+# 5. Fitting the model
+
+---
+
+# Inla.stack for fitting the model
+
+- ` inla.stack()` is useful for orgnizing data, covariates, indices and projector matrices. 
+
+- In our case:
+`$$\eta^* = \boldsymbol{1} \beta_0 + \boldsymbol{1}\beta_1 sim + \boldsymbol{A} \boldsymbol{w} \,.$$`
+
+
+- The first term is the intercept, the second one the covariate, and the third one the spatial effect. Each term is represented as a .hlb[product of a projector matrix and an effect].
+
+
+- `inla.stack()` function allows us to work with predictors that includes terms with different dimensions. 
+
+
+- The three main `inla.stack()` arguments are:
+  - A vector list with the data `data`.
+  - A list of projector matrices (each related to one block effect, `A`)
+  - A list of effects (`effects`).
+  - Optionally (recommended), a label can be assigned to the data stack (using argument `tag`). 
+
+
+---
+# Inla.stack for estimation
+
+&lt;/br&gt;
+
+
+```r
+stk.est &lt;- inla.stack(data    = list(y = galicia$InfFasc),
+                      A       = list(A.est, 1),
+                      effects = list(spatial = 1:spde$n.spde,
+                                     data.frame(beta0 = 1, 
+                                                galicia)),
+                      tag     = 'est')
+```
+
+---
+# Time to call inla
+
+
+```r
+  formula.1 &lt;- y ~ -1 + beta0 + Temperature + f(spatial, model = spde)
+```
+
+
+```r
+model.est &lt;- inla(formula.1,
+                  data              = inla.stack.data(stk.est), 
+                  family            = "binomial" ,
+                  control.compute   = list(dic              = TRUE,
+                                           cpo              = TRUE, 
+                                           waic             = TRUE, 
+                                           return.marginals = TRUE), 
+                  control.predictor = list(A       = inla.stack.A(stk.est), 
+                                           compute = TRUE),
+                  #control.inla=list(strategy = "laplace"),
+                  num.threads       = 2,
+                  verbose           = TRUE)
+```
+
+---
+# Posterior predictive distribution
+
+.center[
+.hlb[*Fasciola* in Galicia]
+![](../images/predictive_effect.png)]
+
+---
+
+class: inverse, center, middle, animated, rotateInDownRight
+
+# 6. Example in one dimension
+
+---
+# Non equispaced samples in time
+
+.center[
+![](../images/data1d_cont.png)]
+
+
+---
+# Possible model
+
+.left-column2[
+.center[
+&lt;font size="+3"&gt; .hlb[Likelihood] &lt;/font&gt; 
+
+`$$y_i \sim \mathcal{N}(\mu_i, \tau^{-1}) \,, i= 1, \ldots, n$$`
+
+`$$\mu_i = u_i$$`
+
+&lt;font size="+3"&gt; .hlb[Latent Gaussian field] &lt;/font&gt;
+
+`$$u_i - 2u_{i+1} + u_{i + 2} \sim  \mathcal{N}\left(0, \tau_{\boldsymbol{u}}^{-1} \right)$$`
+
+
+&lt;font size="+3"&gt; .hlb[Hyperparameters] &lt;/font&gt;
+
+`$$\log(\tau), \log(\tau_{\boldsymbol{u}}) \sim \text{logGamma}(1, 5 \cdot 10^{-5})\,\,$$`
+]
+
+### .hlbred[Problem: the time is continuous!]
+]
+
+.right.column2[
+.center[
+### .hlbred[Discretize]
+
+&lt;font size="+3"&gt; .hlb[Likelihood] &lt;/font&gt; 
+
+`$$y_i \sim \mathcal{N}(\mu_i, \tau^{-1}) \,, i= 1, \ldots, n$$`
+
+`$$\mu_i = \sum_{j = 1}^J w_{ij} u_j, \ \  j \text{ are the index for the knots}$$`
+
+&lt;font size="+3"&gt; .hlb[Latent Gaussian field] &lt;/font&gt;
+
+`$$u_j - 2u_{j+1} + u_{j + 2} \sim  \mathcal{N}\left(0, \tau_{\boldsymbol{u}}^{-1} \right)$$`
+
+
+&lt;font size="+3"&gt; .hlb[Hyperparameters] &lt;/font&gt;
+
+`$$\log(\tau), \log(\tau_{\boldsymbol{u}}) \sim \text{logGamma}(1, 5 \cdot 10^{-5})\,\,$$`
+
+]
+]
+
+
+---
+
+# We fit a random walk of second order
+
+.center[
+![](../images/rw2_cont.png)]
+
+---
+# More knots, the better is the fit
+
+.center[
+![](../images/rws_cont.png)]
+
+
+---
+
+class: center, middle, animated, rotateInUpRight, inverse 
+
+
+# 7. Model convergence check
+
+---
+
+# Model convergence check
+
+Here some useful things to look at to check a good convergence of INLA. Look at the output when call with .hlb[verbose=T].
+
+- Find the .hlb[mode of the hyperparameters] in optimization process
+
+  |x-x.old|=0.00179(pass) |f-f.old|=9.83e-005(pass)
+
+
+- Eigenvalues: really high .hlb[eigenvalues of the Hessian] is a signal of a wrong result.
+
+  Eigenvalues of the Hessian: .hlbred[352545481]
+	  10.266339
+	  0.738685
+
+
+- .hlb[Corrected stdev] for `\(\boldsymbol{\psi}\)` 
+
+  Compute corrected stdev for theta[0]: negative 1.029899  positive 0.972300
+  
+  Compute corrected stdev for theta[1]: negative 1.024824  positive 0.955826
+  
+  Compute corrected stdev for theta[2]: .hlbred[negative 0.897012  positive 0.155335]
+
+---
+
+class: inverse, center, middle, animated, slideInRight
+
+# 8. References
+
+---
+
+# This material has been constructed based on: 
+- Barber, X., Conesa, D., Lladosa, S., &amp; López-Quílez, A. (2016). Modelling the presence of disease under spatial misalignment using Bayesian latent Gaussian models. Geospatial health, 11:415.
+
+- Blangiardo, M., &amp; Cameletti, M. (2015). Spatial and spatio-temporal Bayesian models with R-INLA. John Wiley &amp; Sons.
+
+- Fuglstad, G. A., Simpson, D., Lindgren, F., &amp; Rue, H. (2019). Constructing priors that penalize the complexity of Gaussian random fields. Journal of the American Statistical Association, 114(525), 445-452.
+
+
+- &lt;a href="https://www.r-inla.org/examples-tutorials" style="color:#FF0000;"&gt; INLA tutorials &lt;/a&gt;
+
+- &lt;a href="https://becarioprecario.bitbucket.io/inla-gitbook/index.html" style="color:#FF0000;"&gt; INLA book by Virgilio Gómez-Rúbio &lt;/a&gt;
+
+- &lt;a href="https://www.paulamoraga.com/book-geospatial/" style="color:#FF0000;"&gt; INLA book by Paula Moraga &lt;/a&gt;
+
+- &lt;href="https://becarioprecario.bitbucket.io/spde-gitbook/" style="color:#FF0000;"&gt; SPDE book by Krainski et al. &lt;/a&gt;
+
+
+---
+class: inverse, center, middle, animated, bounceInDown
+
+
+# The End
+    </textarea>
+<style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
+<script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script>var slideshow = remark.create({
+"ratio": "16:9",
+"highlightStyle": "foundation",
+"highlightLines": true,
+"countIncrementalSlides": true,
+"slideNumberFormat": "%current%"
+});
+if (window.HTMLWidgets) slideshow.on('afterShowSlide', function (slide) {
+  window.dispatchEvent(new Event('resize'));
+});
+(function(d) {
+  var s = d.createElement("style"), r = d.querySelector(".remark-slide-scaler");
+  if (!r) return;
+  s.type = "text/css"; s.innerHTML = "@page {size: " + r.style.width + " " + r.style.height +"; }";
+  d.head.appendChild(s);
+})(document);
+
+(function(d) {
+  var el = d.getElementsByClassName("remark-slides-area");
+  if (!el) return;
+  var slide, slides = slideshow.getSlides(), els = el[0].children;
+  for (var i = 1; i < slides.length; i++) {
+    slide = slides[i];
+    if (slide.properties.continued === "true" || slide.properties.count === "false") {
+      els[i - 1].className += ' has-continuation';
+    }
+  }
+  var s = d.createElement("style");
+  s.type = "text/css"; s.innerHTML = "@media print { .has-continuation { display: none; } }";
+  d.head.appendChild(s);
+})(document);
+// delete the temporary CSS (for displaying all slides initially) when the user
+// starts to view slides
+(function() {
+  var deleted = false;
+  slideshow.on('beforeShowSlide', function(slide) {
+    if (deleted) return;
+    var sheets = document.styleSheets, node;
+    for (var i = 0; i < sheets.length; i++) {
+      node = sheets[i].ownerNode;
+      if (node.dataset["target"] !== "print-only") continue;
+      node.parentNode.removeChild(node);
+    }
+    deleted = true;
+  });
+})();
+(function() {
+  "use strict"
+  // Replace <script> tags in slides area to make them executable
+  var scripts = document.querySelectorAll(
+    '.remark-slides-area .remark-slide-container script'
+  );
+  if (!scripts.length) return;
+  for (var i = 0; i < scripts.length; i++) {
+    var s = document.createElement('script');
+    var code = document.createTextNode(scripts[i].textContent);
+    s.appendChild(code);
+    var scriptAttrs = scripts[i].attributes;
+    for (var j = 0; j < scriptAttrs.length; j++) {
+      s.setAttribute(scriptAttrs[j].name, scriptAttrs[j].value);
+    }
+    scripts[i].parentElement.replaceChild(s, scripts[i]);
+  }
+})();
+(function() {
+  var links = document.getElementsByTagName('a');
+  for (var i = 0; i < links.length; i++) {
+    if (/^(https?:)?\/\//.test(links[i].getAttribute('href'))) {
+      links[i].target = '_blank';
+    }
+  }
+})();
+// adds .remark-code-has-line-highlighted class to <pre> parent elements
+// of code chunks containing highlighted lines with class .remark-code-line-highlighted
+(function(d) {
+  const hlines = d.querySelectorAll('.remark-code-line-highlighted');
+  const preParents = [];
+  const findPreParent = function(line, p = 0) {
+    if (p > 1) return null; // traverse up no further than grandparent
+    const el = line.parentElement;
+    return el.tagName === "PRE" ? el : findPreParent(el, ++p);
+  };
+
+  for (let line of hlines) {
+    let pre = findPreParent(line);
+    if (pre && !preParents.includes(pre)) preParents.push(pre);
+  }
+  preParents.forEach(p => p.classList.add("remark-code-has-line-highlighted"));
+})(document);</script>
+
+<script>
+slideshow._releaseMath = function(el) {
+  var i, text, code, codes = el.getElementsByTagName('code');
+  for (i = 0; i < codes.length;) {
+    code = codes[i];
+    if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+      text = code.textContent;
+      if (/^\\\((.|\s)+\\\)$/.test(text) || /^\\\[(.|\s)+\\\]$/.test(text) ||
+          /^\$\$(.|\s)+\$\$$/.test(text) ||
+          /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+        code.outerHTML = code.innerHTML;  // remove <code></code>
+        continue;
+      }
+    }
+    i++;
+  }
+};
+slideshow._releaseMath(document);
+</script>
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+(function () {
+  var script = document.createElement('script');
+  script.type = 'text/javascript';
+  script.src  = 'https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-MML-AM_CHTML';
+  if (location.protocol !== 'file:' && /^https?:/.test(script.src))
+    script.src  = script.src.replace(/^https?:/, '');
+  document.getElementsByTagName('head')[0].appendChild(script);
+})();
+</script>
+  </body>
+</html>
