@@ -1,0 +1,6 @@
+library(xaringanBuilder)
+library(chromote)
+build_pdf("class_1/Introduction.html")
+build_pdf("class_1/bayesian_inference.html")
+build_pdf("class_1/inla.html")
+build_pdf("class_2/spatial.html")
